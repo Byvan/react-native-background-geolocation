@@ -386,8 +386,7 @@ public class SQLiteLocationDAO implements LocationDAO {
   public int deleteAllLocations() {
     ContentValues values = new ContentValues();
     values.put(LocationEntry.COLUMN_NAME_STATUS, BackgroundLocation.DELETED);
-
-    return db.delete(LocationEntry.TABLE_NAME);
+    return db.delete(LocationEntry.TABLE_NAME, "1", null);
   }
 
   /**
