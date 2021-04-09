@@ -94,7 +94,7 @@ public abstract class AbstractLocationProvider implements LocationProvider {
      */
     protected void handleLocation (Location location) {
         playDebugTone(Tone.BEEP);
-        if (mDelegate != null && location.getAccuracy() < 20.0) {
+        if (mDelegate != null) {
             BackgroundLocation bgLocation = new BackgroundLocation(PROVIDER_ID, location);
             bgLocation.setMockLocationsEnabled(hasMockLocationsEnabled());
             mDelegate.onLocation(bgLocation);
