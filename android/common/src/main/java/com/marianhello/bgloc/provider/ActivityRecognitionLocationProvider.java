@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.location.Location;
 import android.os.Bundle;
+import android.os.Looper;
 import android.os.PowerManager;
 import android.util.Log;
 
@@ -15,11 +16,14 @@ import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.ActivityRecognition;
 import com.google.android.gms.location.ActivityRecognitionResult;
 import com.google.android.gms.location.DetectedActivity;
+import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.marianhello.bgloc.Config;
 import com.marianhello.bgloc.data.BackgroundActivity;
+import com.marianhello.bgloc.service.LocationService;
 
 import java.util.ArrayList;
 
@@ -37,7 +41,10 @@ public class ActivityRecognitionLocationProvider extends AbstractLocationProvide
     private boolean isTracking = false;
     private boolean isWatchingActivity = false;
     private Location lastLocation;
+    private LocationCallback locationCallback;
     private DetectedActivity lastActivity = new DetectedActivity(DetectedActivity.UNKNOWN, 100);
+
+    private KalmanLatLong kalmanLatLong = new KalmanLatLong(3);
 
     public ActivityRecognitionLocationProvider(Context context) {
         super(context);
@@ -92,11 +99,27 @@ public class ActivityRecognitionLocationProvider extends AbstractLocationProvide
             return;
         }
 
-        showDebugToast("acy:" + location.getAccuracy() + ",v:" + location.getSpeed());
+        if(location.hasSpeed() && location.hasAccuracy() && location.hasBearing()){
+            showDebugToast("acy:" + location.getAccuracy() + ",v:" + location.getSpeed());
 
-        lastLocation = location;
-        handleLocation(location);
+            kalmanLatLong.process(
+                    location.getLatitude(),
+                    location.getLongitude(),
+                    location.getAccuracy(),
+                    location.getTime());
+
+            location.setLatitude(kalmanLatLong.get_lat());
+            location.setLongitude(kalmanLatLong.get_lng());
+            location.setAccuracy(kalmanLatLong.get_accuracy());
+
+            logger.debug("Location change after kalman: {}", location.toString());
+
+            lastLocation = location;
+
+            handleLocation(location);
+        }
     }
+
 
     public void startTracking() {
         if (isTracking) { return; }
@@ -108,7 +131,19 @@ public class ActivityRecognitionLocationProvider extends AbstractLocationProvide
                 .setInterval(mConfig.getInterval());
         // .setSmallestDisplacement(mConfig.getStationaryRadius());
         try {
-            LocationServices.FusedLocationApi.requestLocationUpdates(googleApiClient, locationRequest, this);
+            locationCallback = new LocationCallback() {
+                @Override
+                public void onLocationResult(LocationResult locationResult) {
+                    if (locationResult == null) {
+                        return;
+                    }
+                    Location loc = locationResult.getLastLocation();
+                    onLocationChanged(loc);
+                }
+            };
+
+            LocationServices.getFusedLocationProviderClient(mContext).requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper());
+//            LocationServices.FusedLocationApi.requestLocationUpdates(googleApiClient, locationRequest, this);
             isTracking = true;
             logger.debug("Start tracking with priority={} fastestInterval={} interval={} activitiesInterval={} stopOnStillActivity={}", priority, mConfig.getFastestInterval(), mConfig.getInterval(), mConfig.getActivitiesInterval(), mConfig.getStopOnStillActivity());
         } catch (SecurityException e) {
@@ -119,8 +154,9 @@ public class ActivityRecognitionLocationProvider extends AbstractLocationProvide
 
     public void stopTracking() {
         if (!isTracking) { return; }
+        LocationServices.getFusedLocationProviderClient(mContext).removeLocationUpdates(locationCallback);
 
-        LocationServices.FusedLocationApi.removeLocationUpdates(googleApiClient, this);
+//        LocationServices.FusedLocationApi.removeLocationUpdates(googleApiClient, this);
         isTracking = false;
     }
 
