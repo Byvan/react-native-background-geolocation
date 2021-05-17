@@ -90,7 +90,7 @@ public class ActivityRecognitionLocationProvider extends AbstractLocationProvide
     }
 
     @Override
-    public void onLocationChanged(Location location) {
+     public void onLocationChanged(Location location) {
         logger.debug("Location change: {}", location.toString());
 
         if (lastActivity.getType() == DetectedActivity.STILL) {
@@ -102,23 +102,35 @@ public class ActivityRecognitionLocationProvider extends AbstractLocationProvide
         if(location.hasSpeed() && location.hasAccuracy() && location.hasBearing()){
             showDebugToast("acy:" + location.getAccuracy() + ",v:" + location.getSpeed());
 
-            kalmanLatLong.process(
-                    location.getLatitude(),
-                    location.getLongitude(),
-                    location.getAccuracy(),
-                    location.getTime());
+//            kalmanLatLong.process(
+//                    location.getLatitude(),
+//                    location.getLongitude(),
+//                    location.getAccuracy(),
+//                    location.getTime());
+//
+//            location.setLatitude(kalmanLatLong.get_lat());
+//            location.setLongitude(kalmanLatLong.get_lng());
+//            location.setAccuracy(kalmanLatLong.get_accuracy());
+//            logger.debug("Location change after kalman: {}", location.toString());
+            if(lastLocation != null){
+                logger.debug("Location change yes hasAccuracy: {}", location.toString());
+                float distance = lastLocation.distanceTo(location);
+                long time = (location.getTime() - lastLocation.getTime())/1000;
+                float speed = distance/time;
+                logger.debug("Location change speed: {}", speed);
+                if(speed < 25){
+                    handleLocation(location);
+                    lastLocation = location;
+                }
+            }else{
+                logger.debug("Location change no hasAccuracy: {}", location.toString());
+                handleLocation(location);
+                lastLocation = location;
+            }
 
-            location.setLatitude(kalmanLatLong.get_lat());
-            location.setLongitude(kalmanLatLong.get_lng());
-            location.setAccuracy(kalmanLatLong.get_accuracy());
-
-            logger.debug("Location change after kalman: {}", location.toString());
-
-            lastLocation = location;
-
-            handleLocation(location);
         }
     }
+
 
 
     public void startTracking() {
